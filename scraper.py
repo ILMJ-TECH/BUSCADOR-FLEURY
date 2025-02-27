@@ -1,119 +1,85 @@
-import sqlite3
-import time
+import psycopg2
 import os
+import time
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
-from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, TimeoutException
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
+from selenium.common.exceptions import NoSuchElementException, TimeoutException, ElementClickInterceptedException
+from webdriver_manager.chrome import ChromeDriverManager
 
-# Configuração do banco de dados SQLite
-db_path = os.path.abspath("vagas.db")
-conn = sqlite3.connect(db_path)
-cursor = conn.cursor()
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://vagas_1ukx_user:gyKqtHfa24cGoojv7SYvVrfbUciqxZtq@dpg-cv06f13tq21c73920oc0-a.oregon-postgres.render.com/vagas_1ukx")
 
-# Criar tabela se não existir
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS vagas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        titulo TEXT UNIQUE,
-        link TEXT UNIQUE,
-        empresa TEXT
-    )
-""")
-conn.commit()
+def conectar_bd():
+    return psycopg2.connect(DATABASE_URL, sslmode="require")
 
-# Configurar o navegador Selenium
-options = webdriver.ChromeOptions()
-options.add_argument("--headless")  # Rodar em modo headless (sem abrir o navegador)
-options.add_argument("user-agent=Mozilla/5.0")  # Definir User-Agent
-options.add_argument("--start-maximized")  # Maximizar janela
-service = Service(ChromeDriverManager().install())
-driver = webdriver.Chrome(service=service, options=options)
-
-def remover_iframes():
-    driver.execute_script("""
-        var iframes = document.getElementsByTagName('iframe');
-        for (var i = 0; i < iframes.length; i++) {
-            iframes[i].parentNode.removeChild(iframes[i]);
-        }
+def criar_tabela():
+    conn = conectar_bd()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS vagas (
+            id SERIAL PRIMARY KEY,
+            titulo TEXT UNIQUE,
+            link TEXT UNIQUE,
+            empresa TEXT
+        )
     """)
+    conn.commit()
+    conn.close()
 
-total_vagas_encontradas = 0
-INTERVALO_VERIFICACAO = 600
+criar_tabela()
 
-def carregar_vagas_vagas():
-    global total_vagas_encontradas
+options = webdriver.ChromeOptions()
+options.add_argument("--headless")
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("user-agent=Mozilla/5.0")
+service = Service(ChromeDriverManager().install())
+
+def scrape_vagas():
+    conn = conectar_bd()
+    cursor = conn.cursor()
+    
+    driver = webdriver.Chrome(service=service, options=options)
     empresa = "Fleury"
     print("Carregando vagas do Grupo Fleury...")
     url = "https://www.vagas.com.br/vagas-de-Fleury"
     driver.get(url)
     driver.implicitly_wait(5)
 
-    while True:
-        try:
-            remover_iframes()  # Remove iframes antes de clicar
-            botao = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "maisVagas")))
-            driver.execute_script("arguments[0].scrollIntoView();", botao)
-            time.sleep(1)  # Pequeno delay para evitar erro
-            driver.execute_script("arguments[0].click();", botao)
-            print("[+] Carregando mais vagas...")
-            time.sleep(3)
-        except (NoSuchElementException, TimeoutException, ElementClickInterceptedException):
-            print("[+] Todas as vagas foram carregadas ou botão inacessível.")
-            break
+    try:
+        while True:
+            try:
+                botao = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "maisVagas")))
+                driver.execute_script("arguments[0].scrollIntoView();", botao)
+                time.sleep(1)
+                driver.execute_script("arguments[0].click();", botao)
+                print("[+] Carregando mais vagas...")
+                time.sleep(3)
+            except (NoSuchElementException, TimeoutException, ElementClickInterceptedException):
+                print("[+] Todas as vagas foram carregadas.")
+                break
 
-    base_url = "https://www.vagas.com.br"
-    vagas = driver.find_elements(By.CSS_SELECTOR, "h2.cargo a")
+        base_url = "https://www.vagas.com.br"
+        vagas = driver.find_elements(By.CSS_SELECTOR, "h2.cargo a")
 
-    total_vagas = 0
-    for vaga in vagas:
-        titulo = vaga.text.strip()
-        link = vaga.get_attribute("href")
-        if link.startswith("/"):
-            link = base_url + link
+        total_vagas = 0
+        for vaga in vagas:
+            titulo = vaga.text.strip()
+            link = vaga.get_attribute("href")
+            if link.startswith("/"):
+                link = base_url + link
 
-        cursor.execute("INSERT OR IGNORE INTO vagas (titulo, link, empresa) VALUES (?, ?, ?)", (titulo, link, empresa))
-        print(f"[+] {titulo} - {link} ({empresa})")
-        total_vagas += 1
+            cursor.execute("INSERT INTO vagas (titulo, link, empresa) VALUES (%s, %s, %s) ON CONFLICT (titulo) DO NOTHING",
+                           (titulo, link, empresa))
+            total_vagas += 1
 
-    total_vagas_encontradas += total_vagas
-    print(f"[+] Total de vagas coletadas do Grupo Fleury: {total_vagas}")
+        conn.commit()
+        print(f"[+] Total de vagas coletadas: {total_vagas}")
 
+    finally:
+        driver.quit()
+        conn.close()
 
-    
-def Countdown(t):
-    while t:
-        mins, secs = divmod(t, 60)
-        timer = '{:02d}:{:02d}'.format(mins, secs)
-        print(f"\r[+] Próxima verificação em {timer}", end="", flush=True)
-        time.sleep(1)
-        t -= 1
-    print("\n")
-
-# Executar as funções de scraping
-carregar_vagas_vagas()
-
-
-Countdown(300)
-
-while True:
-    print("\n[+] Iniciando nova verificação...")
-
-    carregar_vagas_vagas()
-    print("[+] Verificação concluída. Aguardando próxima execução...\n")
-    Countdown(INTERVALO_VERIFICACAO)
-
-# Salvar e fechar conexões
-conn.commit()
-conn.close()
-driver.quit()
-
-print("[+] Scraping finalizado e dados salvos no banco de dados!")
-
+scrape_vagas()

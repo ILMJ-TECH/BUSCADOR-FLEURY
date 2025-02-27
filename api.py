@@ -1,5 +1,6 @@
 from fastapi import FastAPI
-import sqlite3
+import os
+import psycopg2
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -12,9 +13,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+DATABASE_URL = os.getenv("DATABASE_URL").replace("postgresql://", "postgres://", 1)
+
+def conectar_bd():
+    return psycopg2.connect(DATABASE_URL, sslmode="require")
+
 @app.get("/vagas")
 def get_vagas():
-    conn = sqlite3.connect("vagas.db")
+    conn = conectar_bd()
     cursor = conn.cursor()
 
     cursor.execute("SELECT titulo, link, empresa FROM vagas")
