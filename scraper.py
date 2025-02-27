@@ -116,3 +116,4 @@ conn.close()
 driver.quit()
 
 print("[+] Scraping finalizado e dados salvos no banco de dados!")
+
