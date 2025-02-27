@@ -1,19 +1,10 @@
 from fastapi import FastAPI
-import os
 import psycopg2
-from fastapi.middleware.cors import CORSMiddleware
+import os
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Altere para ["http://localhost:5173"] para mais segurança
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-DATABASE_URL = os.getenv("DATABASE_URL").replace("postgresql://", "postgres://", 1)
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://vagas_1ukx_user:gyKqtHfa24cGoojv7SYvVrfbUciqxZtq@dpg-cv06f13tq21c73920oc0-a.oregon-postgres.render.com/vagas_1ukx")
 
 def conectar_bd():
     return psycopg2.connect(DATABASE_URL, sslmode="require")
@@ -22,9 +13,8 @@ def conectar_bd():
 def get_vagas():
     conn = conectar_bd()
     cursor = conn.cursor()
-
-    cursor.execute("SELECT titulo, link, empresa FROM vagas")
-    vagas = [{"titulo": row[0], "link": row[1], "empresa": row[2]} for row in cursor.fetchall()]
-
+    cursor.execute("SELECT titulo, link, empresa FROM vagas ORDER BY id DESC")
+    vagas = cursor.fetchall()
     conn.close()
-    return vagas
+
+    return [{"titulo": v[0], "link": v[1], "empresa": v[2]} for v in vagas]

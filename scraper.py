@@ -82,4 +82,9 @@ def scrape_vagas():
         driver.quit()
         conn.close()
 
-scrape_vagas()
+# Loop infinito para rodar a cada 10 minutos
+while True:
+    print("[*] Iniciando scraping...")
+    scrape_vagas()
+    print("[*] Aguardando 10 minutos para a próxima execução...")
+    time.sleep(600)  # 600 segundos = 10 minutos
