@@ -1,30 +1,27 @@
 from fastapi import FastAPI
-import psycopg2
 import os
+import json
 from fastapi.middleware.cors import CORSMiddleware
 
 
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permite requisições de qualquer origem (mude se precisar)
+    allow_origins=["*"],  
     allow_credentials=True,
-    allow_methods=["*"],  # Permite todos os métodos (GET, POST, etc.)
-    allow_headers=["*"],  # Permite todos os cabeçalhos
+    allow_methods=["*"],  
+    allow_headers=["*"],  
 )
 
+JSON_FILE = "urls.json"
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://vagas_1ukx_user:gyKqtHfa24cGoojv7SYvVrfbUciqxZtq@dpg-cv06f13tq21c73920oc0-a.oregon-postgres.render.com/vagas_1ukx")
-
-def conectar_bd():
-    return psycopg2.connect(DATABASE_URL, sslmode="require")
+def carregar_dados():
+    if os.path.exists(JSON_FILE):
+        with open(JSON_FILE, "r", encoding="utf-8") as file:
+            return json.load(file)
+    return []
 
 @app.get("/vagas")
 def get_vagas():
-    conn = conectar_bd()
-    cursor = conn.cursor()
-    cursor.execute("SELECT titulo, link, empresa FROM vagas ORDER BY id DESC")
-    vagas = cursor.fetchall()
-    conn.close()
-
-    return [{"titulo": v[0], "link": v[1], "empresa": v[2]} for v in vagas]
+    vagas = carregar_dados()
+    return vagas

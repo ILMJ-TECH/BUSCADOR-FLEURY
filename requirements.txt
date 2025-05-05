@@ -1,5 +1,4 @@
-fastapi
-uvicorn
-selenium
-webdriver-manager
-psycopg2
+fastapi==0.110.1
+uvicorn==0.29.0
+selenium==4.21.0
+psycopg2-binary

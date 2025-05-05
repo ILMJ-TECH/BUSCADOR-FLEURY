@@ -1,0 +1,31 @@
+version: "3.9"
+
+services:
+  scraper:
+    container_name: scraper
+    build:
+      context: .
+      dockerfile: Dockerfile.scraper
+    restart: always
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - shared-data:/app/data
+
+  api:
+    container_name: api
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    restart: always
+    depends_on:
+      - scraper
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - shared-data:/app/data
+
+volumes:
+  shared-data:

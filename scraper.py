@@ -1,90 +1,109 @@
-import psycopg2
 import os
 import time
+import json
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException, ElementClickInterceptedException
-from webdriver_manager.chrome import ChromeDriverManager
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://vagas_1ukx_user:gyKqtHfa24cGoojv7SYvVrfbUciqxZtq@dpg-cv06f13tq21c73920oc0-a.oregon-postgres.render.com/vagas_1ukx")
+JSON_FILE = "urls.json"
 
-def conectar_bd():
-    return psycopg2.connect(DATABASE_URL, sslmode="require")
+def carregar_dados():
+    if os.path.exists(JSON_FILE):
+        try:
+            with open(JSON_FILE, "r", encoding="utf-8") as file:
+                return json.load(file)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            print("[!] Erro ao carregar dados: arquivo JSON corrompido ou com codificação inválida. Criando um novo.")
+            salvar_dados([])  
+            return []
+    return []
 
-def criar_tabela():
-    conn = conectar_bd()
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS vagas (
-            id SERIAL PRIMARY KEY,
-            titulo TEXT UNIQUE,
-            link TEXT UNIQUE,
-            empresa TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
+def salvar_dados(dados):
+    try:
+        with open(JSON_FILE, "w", encoding="utf-8") as file:
+            json.dump(dados, file, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"[!] Erro ao salvar dados: {e}")
 
-criar_tabela()
+def configurar_driver():
+    try:
+        options = webdriver.ChromeOptions()
+        options.add_argument("--headless=new")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
 
-options = webdriver.ChromeOptions()
-options.add_argument("--headless")
-options.add_argument("--no-sandbox")
-options.add_argument("--disable-dev-shm-usage")
-options.add_argument("user-agent=Mozilla/5.0")
-service = Service(ChromeDriverManager().install())
+        service = Service("/usr/bin/chromedriver")  # Caminho fixo no container
+        return webdriver.Chrome(service=service, options=options)
+    except Exception as e:
+        print(f"[!] Erro ao configurar o driver: {e}")
+        raise
 
 def scrape_vagas():
-    conn = conectar_bd()
-    cursor = conn.cursor()
-    
-    driver = webdriver.Chrome(service=service, options=options)
-    empresa = "Fleury"
+    vagas_existentes = carregar_dados()
+    vagas_existentes_set = {(vaga["titulo"], vaga["link"]) for vaga in vagas_existentes}
+
+    driver = configurar_driver()
     print("Carregando vagas do Grupo Fleury...")
     url = "https://www.vagas.com.br/vagas-de-Fleury"
     driver.get(url)
-    driver.implicitly_wait(5)
+    time.sleep(3)
 
     try:
         while True:
             try:
-                botao = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, "maisVagas")))
-                driver.execute_script("arguments[0].scrollIntoView();", botao)
+                print("[DEBUG] Tentando encontrar o botão 'maisVagas'...")
+                botao = WebDriverWait(driver, 20).until(
+                EC.presence_of_element_located((By.ID, "maisVagas"))
+                )
+                print("[DEBUG] Botão 'maisVagas' encontrado. Tentando clicar...")
+                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", botao)
                 time.sleep(1)
+
                 driver.execute_script("arguments[0].click();", botao)
+
                 print("[+] Carregando mais vagas...")
                 time.sleep(3)
-            except (NoSuchElementException, TimeoutException, ElementClickInterceptedException):
-                print("[+] Todas as vagas foram carregadas.")
+            except TimeoutException:
+                print("[INFO] Botão 'maisVagas' não encontrado. Todas as vagas foram carregadas.")
                 break
 
         base_url = "https://www.vagas.com.br"
         vagas = driver.find_elements(By.CSS_SELECTOR, "h2.cargo a")
 
-        total_vagas = 0
+        novas_vagas = []
         for vaga in vagas:
             titulo = vaga.text.strip()
             link = vaga.get_attribute("href")
-            if link.startswith("/"):
+            if link and not link.startswith("http"):
                 link = base_url + link
 
-            cursor.execute("INSERT INTO vagas (titulo, link, empresa) VALUES (%s, %s, %s) ON CONFLICT (titulo) DO NOTHING",
-                           (titulo, link, empresa))
-            total_vagas += 1
+            if (titulo, link) not in vagas_existentes_set:
+                novas_vagas.append({"titulo": titulo, "link": link})
+                vagas_existentes_set.add((titulo, link))
 
-        conn.commit()
-        print(f"[+] Total de vagas coletadas: {total_vagas}")
+        vagas_existentes.extend(novas_vagas)
+        salvar_dados(vagas_existentes)
+        print(f"[+] Total de novas vagas coletadas: {len(novas_vagas)}")
 
     finally:
         driver.quit()
-        conn.close()
 
-# Loop infinito para rodar a cada 10 minutos
-while True:
-    print("[*] Iniciando scraping...")
-    scrape_vagas()
-    print("[*] Aguardando 10 minutos para a próxima execução...")
-    time.sleep(600)  # 600 segundos = 10 minutos
+if __name__ == "__main__":
+    tentativas = 0
+    max_tentativas = 5
+    while tentativas < max_tentativas:
+        print("[*] Iniciando scraping...")
+        try:
+            scrape_vagas()
+            tentativas = 0  
+        except Exception as e:
+            tentativas += 1
+            print(f"[!] Erro durante scraping: {e}")
+            if tentativas >= max_tentativas:
+                print("[!] Número máximo de tentativas atingido. Encerrando.")
+                break
+        print("[*] Aguardando 2 minutos para a próxima execução...\n")
+        time.sleep(120)
