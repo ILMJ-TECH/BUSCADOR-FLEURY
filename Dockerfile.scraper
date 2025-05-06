@@ -26,9 +26,10 @@ ENV CHROMEDRIVER_PATH="/usr/bin/chromedriver"
 RUN chmod +x /usr/bin/chromedriver
 
 WORKDIR /app
-COPY . .
 
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Comando padrão
-CMD ["python", "scraper.py"]
+COPY . .
+
+CMD ["python", "main.py"]
