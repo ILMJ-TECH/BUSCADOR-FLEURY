@@ -54,20 +54,28 @@ def scrape_vagas():
     time.sleep(3)
 
     try:
-        while True:
+        max_cliques = 25  
+        cliques = 0
+        while cliques < max_cliques:
             try:
                 print("[DEBUG] Procurando botão 'maisVagas'...")
                 botao = WebDriverWait(driver, 20).until(
-                    EC.presence_of_element_located((By.ID, "maisVagas"))
+                    EC.visibility_of_element_located((By.ID, "maisVagas"))
                 )
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", botao)
                 time.sleep(1)
                 driver.execute_script("arguments[0].click();", botao)
-                print("[+] Carregando mais vagas...")
-                time.sleep(3)
+                cliques += 1
+                print(f"[+] Carregando mais vagas... ({cliques}/{max_cliques})")
+                time.sleep(3)  
             except TimeoutException:
-                print("[INFO] Todas as vagas carregadas.")
+                print("[INFO] Todas as vagas carregadas ou botão não encontrado.")
                 break
+        else:
+            print("[INFO] Limite máximo de cliques atingido.")
+
+        print("[DEBUG] Aguardando carregamento final dos dados...")
+        time.sleep(5)
 
         base_url = "https://www.vagas.com.br"
         vagas = driver.find_elements(By.CSS_SELECTOR, "h2.cargo a")
