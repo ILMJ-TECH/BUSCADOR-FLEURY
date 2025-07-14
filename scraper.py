@@ -51,7 +51,7 @@ def scrape_vagas():
     print("Carregando vagas do Grupo Fleury...")
     url = "https://www.vagas.com.br/vagas-de-Fleury"
     driver.get(url)
-    time.sleep(3)
+    time.sleep(120)
 
     try:
         vagas = driver.find_elements(By.CSS_SELECTOR, "h2.cargo a")
