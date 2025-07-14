@@ -2,6 +2,7 @@ FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y \
     chromium \
+    chromium-driver \
     fonts-liberation \
     libnss3 \
     libxss1 \
@@ -18,12 +19,6 @@ RUN apt-get update && apt-get install -y \
     xdg-utils \
     wget \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Baixar a versão do Chromium instalada
-RUN CHROMIUM_VERSION=$(chromium --version | awk '{print $2}') && \
-    wget -O /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/$CHROMIUM_VERSION/chromedriver_linux64.zip && \
-    unzip /tmp/chromedriver.zip -d /usr/bin/ && \
-    rm /tmp/chromedriver.zip
 
 ENV CHROME_BIN="/usr/bin/chromium"
 ENV CHROMEDRIVER_PATH="/usr/bin/chromedriver"
