@@ -11,6 +11,6 @@ WORKDIR /app
 
 COPY . .
 
-RUN pip install selenium webdriver-manager fastapi uvicorn --shm-size=2g
+RUN pip install selenium webdriver-manager fastapi uvicorn 
 
 CMD ["python", "main.py"]
