@@ -21,17 +21,21 @@ RUN apt-get update && apt-get install -y \
     libxfixes3 \
     libatk-bridge2.0-0 \
     libgtk-3-0 \
-    && rm -rf /var/lib/apt/lists/*
+    ca-certificates \
+    gnupg \
+    --no-install-recommends && rm -rf /var/lib/apt/lists/*
 
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - && \
-    echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list && \
-    apt-get update && apt-get install -y google-chrome-stable && \
+# Adiciona a chave do Google e o repositório do Chrome, instala o Chrome estável
+RUN wget -q -O /usr/share/keyrings/google-linux-signing-keyring.gpg https://dl.google.com/linux/linux_signing_key.pub && \
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-linux-signing-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list && \
+    apt-get update && \
+    apt-get install -y google-chrome-stable && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY . .
 
-RUN pip install selenium webdriver-manager fastapi uvicorn
+RUN pip install --no-cache-dir selenium webdriver-manager fastapi uvicorn
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
