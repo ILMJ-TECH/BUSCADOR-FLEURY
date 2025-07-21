@@ -24,3 +24,7 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - .:/app
+
+  your_service_name:
+    image: your_image_name
+    shm_size: 2g
