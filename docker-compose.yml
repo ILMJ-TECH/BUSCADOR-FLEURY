@@ -26,5 +26,5 @@ services:
       - .:/app
 
   your_service_name:
-    image: your_image_name
+    image: buscador-fleury-scraper
     shm_size: 2g
