@@ -1,6 +1,7 @@
 import os
 import time
 import json
+import tempfile
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -18,7 +19,6 @@ def carregar_dados():
         except (json.JSONDecodeError, UnicodeDecodeError):
             print("[!] Erro ao carregar dados. Criando novo arquivo.")
             salvar_dados([])
-            return []
     return []
 
 def salvar_dados(dados):
@@ -36,8 +36,12 @@ def configurar_driver():
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
         options.add_argument("--disable-software-rasterizer")
+        options.add_argument("--remote-debugging-port=0")
 
-        service = Service("/usr/bin/chromedriver")
+        user_data_dir = tempfile.mkdtemp()
+        options.add_argument(f"--user-data-dir={user_data_dir}")
+
+        service = Service("/usr/bin/chromedriver")  
         return webdriver.Chrome(service=service, options=options)
     except Exception as e:
         print(f"[!] Erro ao configurar o driver: {e}")
@@ -49,12 +53,14 @@ def scrape_vagas():
 
     driver = configurar_driver()
     print("Carregando vagas do Grupo Fleury...")
-    url = "https://www.vagas.com.br/vagas-de-Fleury"
-    driver.get(url)
-    time.sleep(3)
 
     try:
+        url = "https://www.vagas.com.br/vagas-de-Fleury"
+        driver.get(url)
+        time.sleep(3)
+
         vagas = driver.find_elements(By.CSS_SELECTOR, "h2.cargo a")
+
         while True:
             try:
                 print("[DEBUG] Procurando botão 'maisVagas'...")
@@ -62,8 +68,8 @@ def scrape_vagas():
                     EC.element_to_be_clickable((By.ID, "maisVagas"))
                 )
 
-                if botao.get_attribute('disabled'):
-                    print('Botao desabilitado')
+                if botao.get_attribute("disabled"):
+                    print("[INFO] Botão 'maisVagas' desabilitado. Fim da lista.")
                     break
 
                 driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", botao)
@@ -72,22 +78,21 @@ def scrape_vagas():
                 time.sleep(2)
 
                 vagas_att = driver.find_elements(By.CSS_SELECTOR, "h2.cargo a")
-
                 if len(vagas) == len(vagas_att):
-                    print("Nao ha vagas novas")
+                    print("[INFO] Nenhuma nova vaga carregada.")
                     break
-                
-                vagas = vagas_att
 
+                vagas = vagas_att
                 print("[+] Carregando mais vagas...")
                 time.sleep(4.5)
+
             except TimeoutException:
-                print("[INFO] Todas as vagas carregadas.")
+                print("[INFO] Tempo esgotado. Todas as vagas provavelmente foram carregadas.")
                 break
 
+        novas_vagas = []
         base_url = "https://www.vagas.com.br"
 
-        novas_vagas = []
         for vaga in vagas:
             titulo = vaga.text.strip()
             link = vaga.get_attribute("href")
@@ -101,5 +106,9 @@ def scrape_vagas():
         vagas_existentes.extend(novas_vagas)
         salvar_dados(vagas_existentes)
         print(f"[+] Total de novas vagas coletadas: {len(novas_vagas)}")
+
     finally:
         driver.quit()
+
+if __name__ == "__main__":
+    scrape_vagas()
