@@ -9,6 +9,7 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - .:/app
+    shm_size: 2g
 
   api:
     container_name: api
@@ -24,7 +25,4 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - .:/app
-
-  your_service_name:
-    image: buscador-fleury-scraper
     shm_size: 2g
