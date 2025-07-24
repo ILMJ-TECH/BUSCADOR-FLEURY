@@ -11,6 +11,6 @@ WORKDIR /app
 
 COPY . .
 
-RUN pip install selenium webdriver-manager fastapi uvicorn 
+RUN pip install -r requirements.txt
 
 CMD ["python", "main.py"]
